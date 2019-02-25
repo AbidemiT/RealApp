@@ -1,4 +1,2 @@
-music/comedy
-music/hip-hop/**
-music/inspiration
-music/instrumentals/**
+music/
+*.mp3
