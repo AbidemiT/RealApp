@@ -1,118 +1,159 @@
-/* eslint-disable prefer-destructuring */
-/* eslint-disable import/no-dynamic-require */
-/* eslint-disable no-console */
-/* eslint-disable no-unused-vars */
-const express = require('express');
-const bodyParser = require('body-parser');
-const passport = require('passport');
-const LocalStrategy = require('passport-local');
-const mysql = require('mysql');
-const flash = require('connect-flash');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const verifyToken = require('./middleware/verifyToken');
+const bearerToken = require('express-bearer-token');
+const fs = require("fs");
+let secret = 'musicApp';
+const bodyParser = require("body-parser");
+const db = require("./config/database");
+const User = require("./models/User");
+const port = 3000;
 
-const crypto = require('crypto');
+let app = express();
 
-// const BetterMemoryStore = require(`${__dirname}/memory`);
-const db = require('./server');
+app.set("view engine", "ejs");
 
-const app = express();
+app.use("/public", express.static(__dirname + "/public"));
+app.use(
+  bodyParser.urlencoded({
+    extended: true
+  })
+);
 
-app.set('view engine', 'ejs');
-app.use(bodyParser.urlencoded({
-  extended: true,
-}));
-app.use(require('express-session')({
-  secret: 'Real app secret',
-  resave: false,
-  saveUninitialized: false,
-}));
+// Test DB
+db.authenticate()
+  .then(() => console.log("Database Connected"))
+  .catch(err => console.log("Error: " + err));
 
-app.use(passport.initialize());
-app.use(passport.session());
+app.get("/", (req, res) => {
+  res.render("home");
+});
 
-passport.use('local', new LocalStrategy({
-  usernameField: 'username',
-  passwordField: 'password',
-  passReqToCallback: true, // passback entire req to call back
-}, (req, username, password, done) => {
-  if (!username || !password) {
-    return done(null, false);
-  }
-  let salt = '7fa73b47df808d36c5fe328546ddef8b9011b2c6';
-  db.query('SELECT * FROM users WHERE username = ?', [username], (err, rows) => {
-    console.log(err);
-    console.log(rows);
+app.get("/music", (req, res) => {
+  let fileId = req.query.id;
+  let file = __dirname + "/music/" + fileId;
+  fs.exists(file, exists => {
+    if (exists) {
+      let rstream = fs.createReadStream(file);
+      rstream.pipe(res);
+    } else {
+      res.send("It's a 404");
+      res.end();
+    }
+  });
+});
+app.get("/download", (req, res) => {
+  let fileId = req.query.id;
+  let file = __dirname + "/music/" + fileId;
+  fs.exists(file, exists => {
+    if (exists) {
+      res.setHeader("Content-disposition", "attachment; filename=" + fileId);
+      res.setHeader("Content-Type", "application/audio/mpeg3");
+      let rstream = fs.createReadStream(file);
+      rstream.pipe(res);
+    } else {
+      res.send("It's a 404");
+      res.end();
+    }
+  });
+});
+
+app.get("/songs", verifyToken, (req, res) => {
+  console.log(req.token);
+  jwt.verify(req.token, secret, (err, authData) => {
     if (err) {
-      return err;
+      res.send('Error winks');
+    } else {
+      res.render("songs");
     }
-    if (!rows.length) {
-      return done(null, false);
-    }
-    salt = `${salt}${password}`;
-    const encPassword = crypto.createHash('sha1').update(salt).digest('hex');
-    const dbPassword = rows[0].password;
-
-    if (!(dbPassword === encPassword)) {
-      return done(null, false);
-    }
-
-    return done(null, rows[0]);
-  });
-}));
-
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser((id, done) => {
-  db.query(`SELECT * FROM users WHERE id = ${id}`, (err, rows) => {
-    done(err, rows[0]);
   });
 });
 
-// ==============
-// ROUTES
-// ==============
-app.get('/', (req, res) => {
-  res.render('home');
+
+// Register routes
+app.get("/register", (req, res) => {
+  res.render("register");
 });
 
-// Login Logic
-app.get('/login', (req, res) => {
-  res.render('login');
-});
-
-app.post('/login', (req, res) => {
-
-});
-// Secret Route
-app.get('/secret', (req, res) => {
-  res.render('secret');
-});
-
-// Sign up Logic
-app.get('/register', (req, res) => {
-  res.render('register');
-});
-
-app.post('/register', passport.authenticate('local', {
-  successRedirect: '/login',
-  failureRedirect: '/register',
-  failureFlash: true,
-
-}), (req, res) => {
-  const username = req.body.username;
-  const password = req.body.password;
-
-  const post = {
-    username,
-    password,
-  };
-  const sql = 'INSERT INTO users SET ?';
-  const query = db.query(sql, post, (err, result) => {
-    if (err) throw err;
-    res.redirect('login');
+app.post("/register", (req, res) => {
+  User.findOne({
+    where: {
+      email: req.body.user.email
+    }
+  }).then(user => {
+    if (user !== null) {
+      console.log(`user Exist`);
+      res.redirect("/register");
+    } else {
+      User.create({
+          username: req.body.user.username,
+          email: req.body.user.email,
+          phoneNumber: req.body.user.phoneNumber,
+          password: req.body.user.password
+        })
+        .then(() => {
+          console.log(`user created`);
+          res.redirect("/login");
+        })
+        .catch(err => console.log(`error: ${err}`));
+    }
   });
 });
 
-// eslint-disable-next-line no-console
-app.listen(3500, '127.0.0.1', () => console.log('Realapp Active on port 3500 ..'));
+// Login routes
+app.get("/login", (req, res) => {
+  res.render("login");
+});
+
+app.post("/login", (req, res) => {
+  User.findOne({
+      where: {
+        email: req.body.user.email
+      }
+    })
+    .then(user => {
+      if (user.email === req.body.user.email) {
+        var token = jwt.sign({
+          user
+        }, secret);
+        console.log(`login successful`);
+        res.redirect('/songs');
+        
+      }
+    })
+    .catch(err => res.redirect("/register"));
+});
+
+// Logout
+app.get("/logout", (req, res) => {
+  req.logOut();
+  res.redirect("/");
+});
+
+// format of token
+// Authorization: Bearer <access_token>
+
+// function verifyToken(req, res, next) {
+
+//   // Get auth header value
+//   const bearerHeader = req.headers["authorization"];
+//   console.log(bearerHeader)
+//   // check if bearer is undefined
+//   if (typeof bearerHeader !== "undefined") {
+//     // Split with space
+//     const bearer = bearerHeader.split(" ");
+//     // get token from bearer array
+//     const bearerToken = bearer[1];
+//     // set the token
+//     req.token = bearerToken;
+//     // next middleware
+//     next();
+//   } else {
+//     // Forbidden
+//     res.sendStatus(403);
+//   }
+// }
+
+app.listen(port, "127.0.0.1", () =>
+  console.log(`Server Active on port ${port}`)
+);
