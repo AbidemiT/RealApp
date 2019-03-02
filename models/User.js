@@ -1,5 +1,4 @@
 const Sequelize = require('sequelize');
-// const passportLocalSequelize = require('passport-local-sequelize');
 const db = require('../config/database');
 
 const User = db.define('user', {
@@ -17,7 +16,7 @@ const User = db.define('user', {
     allowNull: false,
   },
   phoneNumber: {
-    type: Sequelize.INTEGER,
+    type: Sequelize.STRING,
     allowNull: false,
   },
   password: {

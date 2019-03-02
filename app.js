@@ -1,15 +1,16 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const verifyToken = require('./middleware/verifyToken');
-const bearerToken = require('express-bearer-token');
 const fs = require("fs");
-let secret = 'musicApp';
+const verifyToken = require('./middleware/verifyToken');
 const bodyParser = require("body-parser");
 const db = require("./config/database");
 const User = require("./models/User");
 const port = 3000;
 
+let secret = "musicApp";
 let app = express();
+let LocalStorage = require('node-localstorage').LocalStorage;
+localStorage = new LocalStorage('./scratch');
 
 app.set("view engine", "ejs");
 
@@ -19,6 +20,10 @@ app.use(
     extended: true
   })
 );
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Headers', 'Content-type,Authorization');
+  next();
+});
 
 // Test DB
 db.authenticate()
@@ -59,16 +64,14 @@ app.get("/download", (req, res) => {
 });
 
 app.get("/songs", verifyToken, (req, res) => {
-  console.log(req.token);
   jwt.verify(req.token, secret, (err, authData) => {
     if (err) {
-      res.send('Error winks');
+      res.send("Error winks");
     } else {
       res.render("songs");
     }
   });
 });
-
 
 // Register routes
 app.get("/register", (req, res) => {
@@ -114,9 +117,12 @@ app.post("/login", (req, res) => {
     .then(user => {
       if (user.email === req.body.user.email) {
         var token = jwt.sign({
-          user
-        }, secret);
+            user
+          },
+          secret
+        );
         console.log(`login successful`);
+        localStorage.setItem('token', token);
         res.redirect('/songs');
         
       }
@@ -133,26 +139,7 @@ app.get("/logout", (req, res) => {
 // format of token
 // Authorization: Bearer <access_token>
 
-// function verifyToken(req, res, next) {
 
-//   // Get auth header value
-//   const bearerHeader = req.headers["authorization"];
-//   console.log(bearerHeader)
-//   // check if bearer is undefined
-//   if (typeof bearerHeader !== "undefined") {
-//     // Split with space
-//     const bearer = bearerHeader.split(" ");
-//     // get token from bearer array
-//     const bearerToken = bearer[1];
-//     // set the token
-//     req.token = bearerToken;
-//     // next middleware
-//     next();
-//   } else {
-//     // Forbidden
-//     res.sendStatus(403);
-//   }
-// }
 
 app.listen(port, "127.0.0.1", () =>
   console.log(`Server Active on port ${port}`)

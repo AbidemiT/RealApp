@@ -1,20 +1,15 @@
-let jwt = require('jsonwebtoken');
-let secret = 'musicApp';
-let verifyToken = function (req,res,next) {
-  let token = req.headers['authorization']
-
-  if (!token) {
-    return next();
+let verifyToken = (req, res, next) => {
+  let token = localStorage.getItem('token');
+  let bearerHeader = "Bearer " + token;
+  
+  if (bearerHeader !== "undefined") {
+    // Split BearerHeader
+    let splitBheader = bearerHeader.split(' ');
+    let bearerToken = splitBheader[1];
+    req.token = bearerToken;
+    next();
   } else {
-    jwt.verify(token, secret, (err, decode) => {
-      if (err) {
-        return next();
-      } else {
-        req.user = decode;
-        req.token = token;
-        next()
-      }
-    })
+    res.statusCode(403);
   }
 }
 
