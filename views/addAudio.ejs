@@ -1,0 +1,13 @@
+<% include partials/header %>
+
+<div class="container text-center mt-5">
+  <form class="form-signin" action="/addAudio" method="POST">
+    <h1 class="h3 mb-3 font-weight-normal">Add your Track</h1>
+    <label for="inputEmail" class="sr-only">Audio</label>
+    <input type="file" name="uploadedFile" class="form-control" encType="multipart/form-data" required autofocus>   
+    <input type="submit" class="btn btn-lg btn-primary btn-block" value="Upload">
+    <p class="mt-5 mb-3 text-muted">Copyright &copy; Tiamiyu Abidemi Sikiru 2019.</p>
+  </form>
+</div>
+
+<% include partials/footer %>

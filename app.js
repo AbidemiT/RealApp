@@ -3,14 +3,32 @@ const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const verifyToken = require('./middleware/verifyToken');
 const bodyParser = require("body-parser");
+const fileUpload = require('express-fileupload');
 const db = require("./config/database");
 const User = require("./models/User");
 const port = 3000;
 
 let secret = "musicApp";
 let app = express();
+let mv = require('mv');
+let mkdirp = require('mkdirp');
+let multer = require('multer');
+let rand;
+let path = require('path');
 let LocalStorage = require('node-localstorage').LocalStorage;
 localStorage = new LocalStorage('./scratch');
+
+let storage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, '/upload');
+  },
+  filename: (req, file, callback) => {
+    rand = Date.now() + path.extname(file.originalname);
+    callback(null, file.fieldname + '-' + rand);
+  }
+});
+
+let upload = multer({storage})
 
 app.set("view engine", "ejs");
 
@@ -24,6 +42,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-type,Authorization');
   next();
 });
+app.use(fileUpload());
 
 // Test DB
 db.authenticate()
@@ -72,6 +91,35 @@ app.get("/songs", verifyToken, (req, res) => {
     }
   });
 });
+
+app.get("/addAudio", (req, res) => {
+  res.render('addAudio');
+});
+
+app.post("/addAudio",upload.single('uploadedFile'), (req, res) => {
+  console.log(req.body.uploadedFile)
+  console.log(__dirname + '/' + req.body.uploadedFile.path);
+  res.send(rand);
+  // if (Object.keys(req.body.uploadedFile).length == 0) {
+  //   return res.status(400).send('No files were uploaded.');
+  // }
+
+  // let uploadedFile = req.body.uploadedFile;
+  // let path = __dirname +'/music/comedy'
+  // mkdirp(path, (err, made) => {
+  //   if (err) {
+  //     console.log(err)
+  //   }
+  //   console.log(made)
+  //   mv(made +'/' + uploadedFile, __dirname + '/music/comedy/' + uploadedFile, (err) => {
+  //     if (err) {
+  //       return res.status(500).send(err);
+  //     }
+  //     res.send('File uploaded!');
+  //   })
+  // });
+  
+})
 
 // Register routes
 app.get("/register", (req, res) => {
